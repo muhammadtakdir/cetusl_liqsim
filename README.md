@@ -9,7 +9,7 @@
 
 **A professional liquidity simulation tool for Cetus DEX on Sui blockchain**
 
-[Live Demo](#) · [Report Bug](https://github.com/muhammadtakdir/cetusl_liqsim/issues) · [Request Feature](https://github.com/muhammadtakdir/cetusl_liqsim/issues)
+[🚀 Live Demo](https://cetusl-liqsim.vercel.app/) · [Report Bug](https://github.com/muhammadtakdir/cetusl_liqsim/issues) · [Request Feature](https://github.com/muhammadtakdir/cetusl_liqsim/issues)
 
 </div>
 
