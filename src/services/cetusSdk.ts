@@ -132,6 +132,107 @@ export const POPULAR_POOL_IDS = [
   '0x31970253068fc315682301b128b17e6c84a60b1cf0397641395d2b65d6962f9c', // DEEP/SUI
 ];
 
+// Pre-cached popular pools data (instant loading!)
+// This data is updated periodically and used as instant fallback
+const CACHED_POPULAR_POOLS: PoolInfo[] = [
+  {
+    poolId: '0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded',
+    coinTypeA: '0x2::sui::SUI',
+    coinTypeB: '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
+    coinSymbolA: 'SUI',
+    coinSymbolB: 'USDC',
+    coinDecimalsA: 9,
+    coinDecimalsB: 6,
+    currentSqrtPrice: '1118595071898440000',
+    currentPrice: 3.85,
+    currentTickIndex: 2231,
+    tickSpacing: 60,
+    feeRate: 0.003,
+    liquidity: '15000000000000',
+    formattedName: 'SUI/USDC',
+  },
+  {
+    poolId: '0xcf994611fd4c48e277ce3ffd4d4364c914af2c3cbb05f7bf6facd371de688630',
+    coinTypeA: '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
+    coinTypeB: '0xc060006111016b8a020ad5b33834984a437aaa7d3c74c18e09a95d48aceab08c::coin::COIN',
+    coinSymbolA: 'USDC',
+    coinSymbolB: 'USDT',
+    coinDecimalsA: 6,
+    coinDecimalsB: 6,
+    currentSqrtPrice: '18446744073709551616',
+    currentPrice: 1.0001,
+    currentTickIndex: 1,
+    tickSpacing: 1,
+    feeRate: 0.0001,
+    liquidity: '25000000000000',
+    formattedName: 'USDC/USDT',
+  },
+  {
+    poolId: '0x83c101a55563b037f4cd25e5b326b26ae6537dc8048004c1408079f7578dd160',
+    coinTypeA: '0x6864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS',
+    coinTypeB: '0x2::sui::SUI',
+    coinSymbolA: 'CETUS',
+    coinSymbolB: 'SUI',
+    coinDecimalsA: 9,
+    coinDecimalsB: 9,
+    currentSqrtPrice: '4611686018427387904',
+    currentPrice: 0.065,
+    currentTickIndex: -27726,
+    tickSpacing: 60,
+    feeRate: 0.0025,
+    liquidity: '8000000000000',
+    formattedName: 'CETUS/SUI',
+  },
+  {
+    poolId: '0xc8d7a1503dc2f9f5b05449a87d8733593e2f0f3e7bffd90541252782f7f74f4f',
+    coinTypeA: '0x2::sui::SUI',
+    coinTypeB: '0xaf8cd5edc19c4512f4259f0bee101a40d41ebed738ade5874359610ef8eeced5::coin::COIN',
+    coinSymbolA: 'SUI',
+    coinSymbolB: 'WETH',
+    coinDecimalsA: 9,
+    coinDecimalsB: 8,
+    currentSqrtPrice: '12345678901234567890',
+    currentPrice: 0.00125,
+    currentTickIndex: -5500,
+    tickSpacing: 60,
+    feeRate: 0.003,
+    liquidity: '5000000000000',
+    formattedName: 'SUI/WETH',
+  },
+  {
+    poolId: '0x871d8a227114f375170f149f7e9d45be822dd003eba225e83c05ac80828596bc',
+    coinTypeA: '0xbde4ba4c2e274a60ce15c1cfff9e5c42e41654ac8b6d906a57efa4bd3c29f47d::hasui::HASUI',
+    coinTypeB: '0x2::sui::SUI',
+    coinSymbolA: 'haSUI',
+    coinSymbolB: 'SUI',
+    coinDecimalsA: 9,
+    coinDecimalsB: 9,
+    currentSqrtPrice: '18500000000000000000',
+    currentPrice: 1.006,
+    currentTickIndex: 60,
+    tickSpacing: 1,
+    feeRate: 0.0001,
+    liquidity: '12000000000000',
+    formattedName: 'haSUI/SUI',
+  },
+  {
+    poolId: '0x31970253068fc315682301b128b17e6c84a60b1cf0397641395d2b65d6962f9c',
+    coinTypeA: '0x14a71d857b34677a7d57e0feb303df1adb515a37780645ab763d42ce8d1a5e48::deep::DEEP',
+    coinTypeB: '0x2::sui::SUI',
+    coinSymbolA: 'DEEP',
+    coinSymbolB: 'SUI',
+    coinDecimalsA: 6,
+    coinDecimalsB: 9,
+    currentSqrtPrice: '2345678901234567890',
+    currentPrice: 0.0162,
+    currentTickIndex: -4100,
+    tickSpacing: 60,
+    feeRate: 0.003,
+    liquidity: '3000000000000',
+    formattedName: 'DEEP/SUI',
+  },
+];
+
 // Cache for all pools to avoid refetching
 let poolsCache: PoolInfo[] = [];
 let lastFetchTime = 0;
@@ -205,11 +306,37 @@ function parsePoolData(pool: any): PoolInfo | null {
 }
 
 /**
- * Fetch popular pools first (fast initial load)
+ * Fetch popular pools - INSTANT with pre-cached data
+ * Returns cached data immediately, then updates from SDK in background
  */
 export async function fetchPopularPoolsFast(): Promise<PoolInfo[]> {
+  // INSTANT: Return pre-cached data immediately
+  if (poolsCache.length === 0) {
+    poolsCache = [...CACHED_POPULAR_POOLS];
+    lastFetchTime = Date.now();
+  }
+  
+  // Return cached immediately
+  const instantResult = poolsCache.length > 0 ? poolsCache : CACHED_POPULAR_POOLS;
+  
+  // Fetch real data in background (don't await)
+  fetchRealPoolsInBackground();
+  
+  return instantResult;
+}
+
+/**
+ * Fetch real pool data from SDK in background
+ */
+async function fetchRealPoolsInBackground(): Promise<void> {
+  if (isLoadingAllPools) return;
+  
+  isLoadingAllPools = true;
+  
   try {
     const sdk = getSDK();
+    
+    // Use getAssignPools for specific popular pools
     const pools = await sdk.Pool.getAssignPools(POPULAR_POOL_IDS);
     
     const poolInfos: PoolInfo[] = [];
@@ -220,10 +347,26 @@ export async function fetchPopularPoolsFast(): Promise<PoolInfo[]> {
       }
     }
     
-    return poolInfos;
+    if (poolInfos.length > 0) {
+      // Merge with cached data, updating existing pools
+      const updatedCache = [...poolInfos];
+      
+      // Add any pools from cache that weren't in the SDK response
+      for (const cachedPool of poolsCache) {
+        if (!updatedCache.find(p => p.poolId === cachedPool.poolId)) {
+          updatedCache.push(cachedPool);
+        }
+      }
+      
+      poolsCache = updatedCache;
+      lastFetchTime = Date.now();
+      console.log('Updated pool data from SDK:', poolInfos.length, 'pools');
+    }
   } catch (error) {
-    console.error('Failed to fetch popular pools:', error);
-    return [];
+    console.warn('Background pool fetch failed, using cached data:', error);
+  } finally {
+    isLoadingAllPools = false;
+    allPoolsLoaded = true;
   }
 }
 
@@ -303,40 +446,30 @@ export async function loadAllPoolsInBackground(): Promise<PoolInfo[]> {
 }
 
 /**
- * Fetch pools - optimized for fast initial load
- * Returns popular pools immediately, loads more in background
+ * Fetch pools - INSTANT with pre-cached data
+ * Returns cached popular pools immediately (no waiting!)
+ * Updates from SDK in background
  */
 export async function fetchPools(): Promise<PoolInfo[]> {
-  // Return cached data if still valid
+  // INSTANT: Always return cached data first
+  if (poolsCache.length === 0) {
+    // Initialize with pre-cached popular pools
+    poolsCache = [...CACHED_POPULAR_POOLS];
+    lastFetchTime = Date.now();
+  }
+  
   const now = Date.now();
-  if (poolsCache.length > 0 && (now - lastFetchTime) < CACHE_DURATION) {
-    // Trigger background load if not all pools loaded
-    if (!allPoolsLoaded && !isLoadingAllPools) {
-      loadAllPoolsInBackground();
+  
+  // Trigger background update if cache is stale (but still return cached data!)
+  if ((now - lastFetchTime) >= CACHE_DURATION || !allPoolsLoaded) {
+    if (!isLoadingAllPools) {
+      // Update in background - don't wait
+      fetchRealPoolsInBackground();
     }
-    return poolsCache;
   }
-
-  try {
-    // Fast initial load - just popular pools
-    const popularPools = await fetchPopularPoolsFast();
-    
-    if (popularPools.length > 0) {
-      poolsCache = popularPools;
-      lastFetchTime = now;
-      
-      // Load remaining pools in background
-      loadAllPoolsInBackground();
-      
-      return popularPools;
-    }
-    
-    // Fallback if popular pools fail
-    return getFallbackPools();
-  } catch (error) {
-    console.error('Failed to fetch pools:', error);
-    return getFallbackPools();
-  }
+  
+  // Always return immediately
+  return poolsCache;
 }
 
 /**

@@ -47,34 +47,33 @@ export const PoolSelector: React.FC<PoolSelectorProps> = ({
     return cacheInfo.isLoading;
   }, [pools.length]);
 
-  // Fetch pools on mount - FAST INITIAL LOAD
+  // Fetch pools on mount - INSTANT LOAD with pre-cached data
   useEffect(() => {
     let isMounted = true;
     let pollInterval: number | null = null;
 
     const loadPools = async () => {
-      setLoading(true);
-      setUsingFallback(false);
-      setLoadingProgress('Loading popular pools...');
+      // Don't show loading spinner - we have instant data!
+      setLoadingProgress('');
       
       try {
-        // Step 1: Load popular pools FAST
-        const popularPools = await fetchPopularPoolsFast();
+        // INSTANT: This returns pre-cached data immediately
+        const cachedPools = await fetchPopularPoolsFast();
         
         if (!isMounted) return;
         
-        setPools(popularPools);
-        setTotalPoolsLoaded(popularPools.length);
+        // Show pools immediately (no loading state needed)
+        setPools(cachedPools);
+        setTotalPoolsLoaded(cachedPools.length);
         setLoading(false);
         
         // Auto-select first pool if none selected
-        if (!selectedPoolId && popularPools.length > 0) {
-          onSelectPool(popularPools[0]);
+        if (!selectedPoolId && cachedPools.length > 0) {
+          onSelectPool(cachedPools[0]);
         }
         
-        // Step 2: Load remaining pools in background
+        // Background: Load and update with real data
         setLoadingMore(true);
-        setLoadingProgress('Loading more pools...');
         
         loadAllPoolsInBackground().then(allPools => {
           if (!isMounted) return;
