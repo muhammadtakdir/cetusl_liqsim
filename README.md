@@ -67,7 +67,7 @@
 
 ## ⚡ Instant Pool Loading
 
-Unlike typical DeFi apps that require waiting for blockchain data, this simulator uses a **hybrid caching strategy** for instant user experience:
+Unlike typical DeFi apps that require waiting for blockchain data, this simulator uses a **hybrid API + caching strategy** for instant user experience:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -78,20 +78,20 @@ Unlike typical DeFi apps that require waiting for blockchain data, this simulato
 │       │                                                     │
 │       ▼                                                     │
 │  ┌─────────────────────────────────────────┐                │
-│  │  ⚡ INSTANT: Show pre-cached pools      │ ◄── 0ms       │
-│  │     (SUI/USDC, USDC/USDT, CETUS/SUI...) │                │
-│  └─────────────────────────────────────────┘                │
-│       │                                                     │
-│       │  (Background - non-blocking)                        │
-│       ▼                                                     │
-│  ┌─────────────────────────────────────────┐                │
-│  │  🔄 Fetch real-time data from SDK       │ ◄── ~3-5s     │
-│  │     Update prices & add more pools      │                │
+│  │  ⚡ PRIORITY 1: Return API cache        │ ◄── 0ms       │
+│  │     (if available from previous fetch)  │                │
 │  └─────────────────────────────────────────┘                │
 │       │                                                     │
 │       ▼                                                     │
 │  ┌─────────────────────────────────────────┐                │
-│  │  ✅ Cache updated for next 5 minutes    │                │
+│  │  🚀 PRIORITY 2: Fetch from Cetus API    │ ◄── ~200ms    │
+│  │     api-sui.cetus.zone (server-cached!) │                │
+│  └─────────────────────────────────────────┘                │
+│       │                                                     │
+│       ▼                                                     │
+│  ┌─────────────────────────────────────────┐                │
+│  │  📦 FALLBACK: Pre-cached static pools   │                │
+│  │     + SDK background fetch              │                │
 │  └─────────────────────────────────────────┘                │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
@@ -99,18 +99,32 @@ Unlike typical DeFi apps that require waiting for blockchain data, this simulato
 
 ### How It Works
 
-1. **Pre-cached Data**: Popular pools (SUI/USDC, USDC/USDT, CETUS/SUI, etc.) are stored in the codebase with approximate prices
-2. **Instant Display**: When user opens the app, cached pools are shown immediately (0ms wait time)
-3. **Background Update**: Real-time data is fetched from Cetus SDK in the background
-4. **Smart Caching**: Updated data is cached for 5 minutes to reduce API calls
+1. **Cetus REST API**: Primary data source from `api-sui.cetus.zone/v2/sui/stats_pools` (same API used by app.cetus.zone)
+2. **Server-side Cache**: Cetus API already caches pool data on their server (very fast!)
+3. **Client-side Cache**: API responses cached for 2 minutes to minimize requests
+4. **SDK Fallback**: If API fails, falls back to SDK (direct blockchain queries)
+5. **Static Fallback**: Pre-cached popular pools as last resort
+
+### API Endpoint
+
+```typescript
+// Cetus Stats API - Returns pre-cached pool data with real-time prices
+const CETUS_API_URL = 'https://api-sui.cetus.zone/v2/sui/stats_pools';
+
+// Parameters:
+// - display_all_pools=true  : Include all pools
+// - limit=50                : Number of pools to fetch
+// Returns: Pool data with TVL, price, APR, volume 24h, etc.
+```
 
 ### Benefits
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Initial Load | 3-5 seconds | **Instant** |
-| User Experience | "Loading pools..." | Pools visible immediately |
-| Offline Support | ❌ | ✅ Can view cached pools |
+| Metric | Before (SDK only) | After (API + Cache) |
+|--------|-------------------|---------------------|
+| Initial Load | 3-5 seconds | **~200ms** |
+| Data Freshness | Real-time | Server-cached (minutes) |
+| User Experience | "Loading pools..." | Instant |
+| Offline Support | ❌ | ✅ Via client cache |
 
 ---
 

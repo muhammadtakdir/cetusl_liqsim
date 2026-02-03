@@ -1,16 +1,22 @@
 /**
  * Cetus SDK Service
- * Uses @cetusprotocol/sui-clmm-sdk (V2) to fetch real pool data from Mainnet
+ * Uses Cetus REST API (fast, cached) + SDK (V2) for real pool data from Mainnet
  * 
  * Based on Cetus CLMM Mechanics:
  * https://cetus-1.gitbook.io/cetus-developer-docs
  * 
  * Active Liquidity Formula:
  * (x + L/√P_high) · (y + L·√P_low) = L²
+ * 
+ * API Endpoints:
+ * - https://api-sui.cetus.zone/v2/sui/stats_pools - Pre-cached pool data (FAST!)
  */
 
 import { CetusClmmSDK } from '@cetusprotocol/sui-clmm-sdk';
 import BN from 'bn.js';
+
+// Cetus API Base URL - for fast cached pool data
+const CETUS_API_URL = 'https://api-sui.cetus.zone/v2/sui/stats_pools';
 
 // SDK instance (singleton)
 let sdkInstance: CetusClmmSDK | null = null;
@@ -235,12 +241,157 @@ const CACHED_POPULAR_POOLS: PoolInfo[] = [
 
 // Cache for all pools to avoid refetching
 let poolsCache: PoolInfo[] = [];
-let lastFetchTime = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+// SDK cache duration moved to API_CACHE_DURATION
 
 // Background loading state
 let isLoadingAllPools = false;
 let allPoolsLoaded = false;
+
+// API pool cache
+let apiPoolsCache: PoolInfo[] = [];
+let apiLastFetchTime = 0;
+const API_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes API cache
+
+/**
+ * Cetus API Response Types
+ */
+interface CetusApiPoolResponse {
+  code: number;
+  msg: string;
+  data: {
+    total: number;
+    lp_list: CetusApiPool[] | null;
+  };
+}
+
+interface CetusApiPool {
+  symbol: string;
+  name: string;
+  decimals: number;
+  fee: string;
+  tick_spacing: string;
+  address: string;
+  coin_a_address: string;
+  coin_b_address: string;
+  coin_a: {
+    name: string;
+    symbol: string;
+    decimals: number;
+    address: string;
+    balance: number;
+    logo_url: string;
+  };
+  coin_b: {
+    name: string;
+    symbol: string;
+    decimals: number;
+    address: string;
+    balance: number;
+    logo_url: string;
+  };
+  price: string;
+  pure_tvl_in_usd: string;
+  vol_in_usd_24h: string;
+  fee_24_h: string;
+  total_apr: string;
+  object: {
+    coin_a: number;
+    coin_b: number;
+    tick_spacing: number;
+    fee_rate: number;
+    liquidity: number;
+    current_sqrt_price: number;
+    is_pause: boolean;
+    index: number;
+  };
+}
+
+/**
+ * Parse pool from Cetus API response
+ */
+function parseApiPoolData(apiPool: CetusApiPool): PoolInfo | null {
+  try {
+    if (!apiPool || !apiPool.address) return null;
+    
+    const coinA = apiPool.coin_a;
+    const coinB = apiPool.coin_b;
+    
+    if (!coinA || !coinB) return null;
+    
+    const price = parseFloat(apiPool.price);
+    if (!isFinite(price) || price <= 0) return null;
+    
+    const feeRate = parseFloat(apiPool.fee) / 100; // Convert from percentage (e.g., "0.25" -> 0.0025)
+    
+    return {
+      poolId: apiPool.address,
+      coinTypeA: coinA.address,
+      coinTypeB: coinB.address,
+      coinSymbolA: coinA.symbol,
+      coinSymbolB: coinB.symbol,
+      coinDecimalsA: coinA.decimals,
+      coinDecimalsB: coinB.decimals,
+      currentSqrtPrice: String(apiPool.object?.current_sqrt_price || 0),
+      currentPrice: price,
+      currentTickIndex: 0,
+      tickSpacing: parseInt(apiPool.tick_spacing) || 60,
+      feeRate: feeRate,
+      liquidity: String(apiPool.object?.liquidity || 0),
+      formattedName: `${coinA.symbol}/${coinB.symbol}`,
+    };
+  } catch (e) {
+    console.warn('Failed to parse API pool:', apiPool?.address, e);
+    return null;
+  }
+}
+
+/**
+ * Fetch pools from Cetus REST API (FAST - server-side cached!)
+ * This is the same API that app.cetus.zone uses
+ */
+export async function fetchPoolsFromApi(limit: number = 50): Promise<PoolInfo[]> {
+  // Check API cache first
+  if (apiPoolsCache.length > 0 && Date.now() - apiLastFetchTime < API_CACHE_DURATION) {
+    console.log('Returning cached API pools:', apiPoolsCache.length);
+    return apiPoolsCache.slice(0, limit);
+  }
+  
+  try {
+    const url = `${CETUS_API_URL}?has_mining=true&has_farming=true&no_incentives=true&display_all_pools=true&limit=${limit}`;
+    console.log('Fetching pools from Cetus API...');
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const data: CetusApiPoolResponse = await response.json();
+    
+    if (data.code !== 0 || !data.data.lp_list) {
+      throw new Error('Invalid API response');
+    }
+    
+    const pools: PoolInfo[] = [];
+    for (const apiPool of data.data.lp_list) {
+      const parsed = parseApiPoolData(apiPool);
+      if (parsed) {
+        pools.push(parsed);
+      }
+    }
+    
+    if (pools.length > 0) {
+      apiPoolsCache = pools;
+      apiLastFetchTime = Date.now();
+      console.log(`Fetched ${pools.length} pools from Cetus API (total available: ${data.data.total})`);
+    }
+    
+    return pools;
+  } catch (error) {
+    console.warn('Cetus API fetch failed, falling back to SDK:', error);
+    // Fallback to cached or SDK
+    return apiPoolsCache.length > 0 ? apiPoolsCache.slice(0, limit) : CACHED_POPULAR_POOLS;
+  }
+}
 
 /**
  * Sanitize input string to prevent injection attacks
@@ -306,23 +457,38 @@ function parsePoolData(pool: any): PoolInfo | null {
 }
 
 /**
- * Fetch popular pools - INSTANT with pre-cached data
- * Returns cached data immediately, then updates from SDK in background
+ * Fetch popular pools - FAST using Cetus API (server-cached!)
+ * Priority: 1. API cache -> 2. API fetch -> 3. SDK fallback
  */
 export async function fetchPopularPoolsFast(): Promise<PoolInfo[]> {
-  // INSTANT: Return pre-cached data immediately
-  if (poolsCache.length === 0) {
-    poolsCache = [...CACHED_POPULAR_POOLS];
-    lastFetchTime = Date.now();
+  // First, try returning cached API data instantly
+  if (apiPoolsCache.length > 0) {
+    console.log('Returning instant cached API pools:', apiPoolsCache.length);
+    // Refresh in background if cache is old
+    if (Date.now() - apiLastFetchTime > API_CACHE_DURATION) {
+      fetchPoolsFromApi(50).catch(console.warn);
+    }
+    return apiPoolsCache;
   }
   
-  // Return cached immediately
-  const instantResult = poolsCache.length > 0 ? poolsCache : CACHED_POPULAR_POOLS;
+  // If no API cache, use pre-cached static data first
+  if (poolsCache.length === 0) {
+    poolsCache = [...CACHED_POPULAR_POOLS];
+  }
   
-  // Fetch real data in background (don't await)
+  // Then try API fetch (fast, server-cached)
+  try {
+    const apiPools = await fetchPoolsFromApi(50);
+    if (apiPools.length > 0) {
+      return apiPools;
+    }
+  } catch (error) {
+    console.warn('API fetch failed, using fallback:', error);
+  }
+  
+  // Fallback to cached data and trigger SDK background update
   fetchRealPoolsInBackground();
-  
-  return instantResult;
+  return poolsCache.length > 0 ? poolsCache : CACHED_POPULAR_POOLS;
 }
 
 /**
@@ -359,7 +525,6 @@ async function fetchRealPoolsInBackground(): Promise<void> {
       }
       
       poolsCache = updatedCache;
-      lastFetchTime = Date.now();
       console.log('Updated pool data from SDK:', poolInfos.length, 'pools');
     }
   } catch (error) {
@@ -446,43 +611,63 @@ export async function loadAllPoolsInBackground(): Promise<PoolInfo[]> {
 }
 
 /**
- * Fetch pools - INSTANT with pre-cached data
- * Returns cached popular pools immediately (no waiting!)
- * Updates from SDK in background
+ * Fetch pools - FAST using Cetus API (server-cached!)
+ * Returns cached pools immediately, updates from API in background
  */
 export async function fetchPools(): Promise<PoolInfo[]> {
-  // INSTANT: Always return cached data first
-  if (poolsCache.length === 0) {
-    // Initialize with pre-cached popular pools
-    poolsCache = [...CACHED_POPULAR_POOLS];
-    lastFetchTime = Date.now();
-  }
-  
-  const now = Date.now();
-  
-  // Trigger background update if cache is stale (but still return cached data!)
-  if ((now - lastFetchTime) >= CACHE_DURATION || !allPoolsLoaded) {
-    if (!isLoadingAllPools) {
-      // Update in background - don't wait
-      fetchRealPoolsInBackground();
+  // PRIORITY 1: Return API cache instantly
+  if (apiPoolsCache.length > 0) {
+    // Refresh in background if cache is old
+    if (Date.now() - apiLastFetchTime > API_CACHE_DURATION) {
+      fetchPoolsFromApi(100).catch(console.warn);
     }
+    return apiPoolsCache;
   }
   
-  // Always return immediately
+  // PRIORITY 2: Return SDK cache if available
+  if (poolsCache.length > 0) {
+    // Try API in background
+    fetchPoolsFromApi(100).catch(console.warn);
+    return poolsCache;
+  }
+  
+  // PRIORITY 3: Initialize with pre-cached popular pools
+  poolsCache = [...CACHED_POPULAR_POOLS];
+  
+  // Try to fetch from API (fast)
+  try {
+    const apiPools = await fetchPoolsFromApi(100);
+    if (apiPools.length > 0) {
+      return apiPools;
+    }
+  } catch (error) {
+    console.warn('API fetch failed, falling back to SDK:', error);
+  }
+  
+  // Trigger background SDK update
+  if (!isLoadingAllPools) {
+    fetchRealPoolsInBackground();
+  }
+  
   return poolsCache;
 }
 
 /**
  * Search pools by query (symbol or name)
+ * Searches in both API cache and SDK cache
  */
 export function searchPools(query: string): PoolInfo[] {
   const sanitizedQuery = sanitizeInput(query).toLowerCase();
   
   if (!sanitizedQuery || sanitizedQuery.length < 1) {
-    return poolsCache;
+    // Return API cache first, fallback to SDK cache
+    return apiPoolsCache.length > 0 ? apiPoolsCache : poolsCache;
   }
   
-  return poolsCache.filter(pool => 
+  // Search in API cache first (more up-to-date)
+  const searchIn = apiPoolsCache.length > 0 ? apiPoolsCache : poolsCache;
+  
+  return searchIn.filter(pool => 
     pool.coinSymbolA.toLowerCase().includes(sanitizedQuery) ||
     pool.coinSymbolB.toLowerCase().includes(sanitizedQuery) ||
     pool.formattedName.toLowerCase().includes(sanitizedQuery)
@@ -498,13 +683,18 @@ export function getPoolsCacheInfo(): {
   allLoaded: boolean; 
   isLoading: boolean;
   pools: PoolInfo[];
+  source: 'api' | 'sdk' | 'static';
 } {
+  const useApi = apiPoolsCache.length > 0;
+  const useSdk = !useApi && poolsCache.length > CACHED_POPULAR_POOLS.length;
+  
   return {
-    loaded: poolsCache.length,
-    count: poolsCache.length,
-    allLoaded: allPoolsLoaded,
+    loaded: useApi ? apiPoolsCache.length : poolsCache.length,
+    count: useApi ? apiPoolsCache.length : poolsCache.length,
+    allLoaded: useApi || allPoolsLoaded,
     isLoading: isLoadingAllPools,
-    pools: poolsCache,
+    pools: useApi ? apiPoolsCache : poolsCache,
+    source: useApi ? 'api' : (useSdk ? 'sdk' : 'static'),
   };
 }
 
@@ -555,62 +745,6 @@ export async function fetchPoolById(poolId: string): Promise<PoolInfo | null> {
     console.error('Failed to fetch pool:', poolId, error);
     return null;
   }
-}
-
-/**
- * Fallback pools (when SDK fails)
- */
-function getFallbackPools(): PoolInfo[] {
-  return [
-    {
-      poolId: '0x2e041f3fd93646dcc877f783c1f2b7fa62d30271bdef1f21ef002cebf857bded',
-      coinTypeA: '0x2::sui::SUI',
-      coinTypeB: '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
-      coinSymbolA: 'SUI',
-      coinSymbolB: 'USDC',
-      coinDecimalsA: 9,
-      coinDecimalsB: 6,
-      currentSqrtPrice: '1118595071898440000',
-      currentPrice: 1.25,
-      currentTickIndex: 2231,
-      tickSpacing: 60,
-      feeRate: 0.003,
-      liquidity: '1000000000000',
-      formattedName: 'SUI/USDC',
-    },
-    {
-      poolId: '0xcf994611fd4c48e277ce3ffd4d4364c914af2c3cbb05f7bf6facd371de688630',
-      coinTypeA: '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
-      coinTypeB: '0xc060006111016b8a020ad5b33834984a437aaa7d3c74c18e09a95d48aceab08c::coin::COIN',
-      coinSymbolA: 'USDC',
-      coinSymbolB: 'USDT',
-      coinDecimalsA: 6,
-      coinDecimalsB: 6,
-      currentSqrtPrice: '18446744073709551616',
-      currentPrice: 1.0001,
-      currentTickIndex: 1,
-      tickSpacing: 1,
-      feeRate: 0.0001,
-      liquidity: '5000000000000',
-      formattedName: 'USDC/USDT',
-    },
-    {
-      poolId: '0x83c101a55563b037f4cd25e5b326b26ae6537dc8048004c1408079f7578dd160',
-      coinTypeA: '0x6864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS',
-      coinTypeB: '0x2::sui::SUI',
-      coinSymbolA: 'CETUS',
-      coinSymbolB: 'SUI',
-      coinDecimalsA: 9,
-      coinDecimalsB: 9,
-      currentSqrtPrice: '4611686018427387904',
-      currentPrice: 0.0625,
-      currentTickIndex: -27726,
-      tickSpacing: 60,
-      feeRate: 0.0025,
-      liquidity: '800000000000',
-      formattedName: 'CETUS/SUI',
-    },
-  ];
 }
 
 /**
