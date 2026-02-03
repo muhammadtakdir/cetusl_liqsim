@@ -53,6 +53,7 @@
 
 | Feature | Description |
 |---------|-------------|
+| ⚡ **Instant Loading** | Pools appear immediately with pre-cached data |
 | 🔢 **IL Calculator** | Simulate impermanent loss for various price scenarios |
 | 📊 **APY Estimation** | Calculate expected returns from trading fees |
 | ⚠️ **Risk Assessment** | Evaluate out-of-range and volatility risks |
@@ -61,6 +62,55 @@
 | 🔗 **Real Pool Data** | Connect to Cetus Mainnet via SDK |
 | 👛 **zkLogin Wallet** | Connect with Google account (no seed phrase!) |
 | 📱 **Mobile Responsive** | Works on all screen sizes |
+
+---
+
+## ⚡ Instant Pool Loading
+
+Unlike typical DeFi apps that require waiting for blockchain data, this simulator uses a **hybrid caching strategy** for instant user experience:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    LOADING STRATEGY                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  User Opens App                                             │
+│       │                                                     │
+│       ▼                                                     │
+│  ┌─────────────────────────────────────────┐                │
+│  │  ⚡ INSTANT: Show pre-cached pools      │ ◄── 0ms       │
+│  │     (SUI/USDC, USDC/USDT, CETUS/SUI...) │                │
+│  └─────────────────────────────────────────┘                │
+│       │                                                     │
+│       │  (Background - non-blocking)                        │
+│       ▼                                                     │
+│  ┌─────────────────────────────────────────┐                │
+│  │  🔄 Fetch real-time data from SDK       │ ◄── ~3-5s     │
+│  │     Update prices & add more pools      │                │
+│  └─────────────────────────────────────────┘                │
+│       │                                                     │
+│       ▼                                                     │
+│  ┌─────────────────────────────────────────┐                │
+│  │  ✅ Cache updated for next 5 minutes    │                │
+│  └─────────────────────────────────────────┘                │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### How It Works
+
+1. **Pre-cached Data**: Popular pools (SUI/USDC, USDC/USDT, CETUS/SUI, etc.) are stored in the codebase with approximate prices
+2. **Instant Display**: When user opens the app, cached pools are shown immediately (0ms wait time)
+3. **Background Update**: Real-time data is fetched from Cetus SDK in the background
+4. **Smart Caching**: Updated data is cached for 5 minutes to reduce API calls
+
+### Benefits
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Initial Load | 3-5 seconds | **Instant** |
+| User Experience | "Loading pools..." | Pools visible immediately |
+| Offline Support | ❌ | ✅ Can view cached pools |
 
 ---
 
