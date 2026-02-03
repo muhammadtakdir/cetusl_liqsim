@@ -49,54 +49,54 @@ export const PoolStats: React.FC<PoolStatsProps> = ({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         {/* Current Price */}
-        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4 min-w-0">
-          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 truncate">
-            Current Price
+        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
+          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1">
+            Price
           </p>
-          <p className="text-base sm:text-xl font-bold text-white truncate" title={`$${currentPrice}`}>
+          <p className="text-sm sm:text-lg font-bold text-white" title={`$${currentPrice}`}>
             ${formatPrice(currentPrice)}
           </p>
-          <p className="text-[10px] sm:text-xs text-gray-500 truncate">
+          <p className="text-[10px] sm:text-xs text-gray-500">
             {tokenASymbol}/{tokenBSymbol}
           </p>
         </div>
 
         {/* 24h Volume */}
-        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4 min-w-0">
-          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 truncate">
-            24h Volume
+        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
+          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1">
+            Volume 24h
           </p>
-          <p className="text-base sm:text-xl font-bold text-white truncate" title={`$${volume24h}`}>
+          <p className="text-sm sm:text-lg font-bold text-white" title={`$${volume24h.toLocaleString()}`}>
             ${formatNumber(volume24h)}
           </p>
-          <p className="text-[10px] sm:text-xs text-gray-500 truncate">
-            Trading Volume
+          <p className="text-[10px] sm:text-xs text-gray-500">
+            {volume24h > 0 ? 'Trading' : 'No data'}
           </p>
         </div>
 
         {/* TVL */}
-        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4 min-w-0">
-          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 truncate">
+        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
+          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1">
             TVL
           </p>
-          <p className="text-base sm:text-xl font-bold text-cetus-accent truncate" title={`$${tvl}`}>
+          <p className="text-sm sm:text-lg font-bold text-cetus-accent" title={`$${tvl.toLocaleString()}`}>
             ${formatNumber(tvl)}
           </p>
-          <p className="text-[10px] sm:text-xs text-gray-500 truncate">
-            Total Value Locked
+          <p className="text-[10px] sm:text-xs text-gray-500">
+            {tvl > 0 ? 'Locked' : 'No data'}
           </p>
         </div>
 
         {/* Est. APY */}
-        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4 min-w-0">
-          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 truncate">
-            Est. Pool APY
+        <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
+          <p className="text-gray-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1">
+            Est. APY
           </p>
-          <p className="text-base sm:text-xl font-bold text-green-400 truncate">
-            {estimatedAPY > 1000 ? '>1000' : estimatedAPY.toFixed(2)}%
+          <p className="text-sm sm:text-lg font-bold text-green-400">
+            {estimatedAPY > 1000 ? '>1000' : estimatedAPY.toFixed(1)}%
           </p>
-          <p className="text-[10px] sm:text-xs text-gray-500 truncate">
-            Based on 24h fees
+          <p className="text-[10px] sm:text-xs text-gray-500">
+            {volume24h > 0 ? 'From fees' : 'No data'}
           </p>
         </div>
       </div>

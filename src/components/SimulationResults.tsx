@@ -293,7 +293,25 @@ export const SimulationResults: React.FC<SimulationResultsProps> = ({
               <tr key={index} className={`border-b border-gray-800 hover:bg-gray-800/30 ${data.isOutOfRange ? 'bg-red-900/20' : ''}`}>
                 <td className={`py-3 px-2 ${data.priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {data.priceChange >= 0 ? '+' : ''}{data.priceChange.toFixed(0)}%
-                  {data.isOutOfRange && <span className="ml-1 text-xs text-red-400">⚠️</span>}
+                  {data.isOutOfRange && (
+                    <span 
+                      className="ml-1 text-xs text-red-400 cursor-help relative group"
+                      title={data.outOfRangeDirection === 'below' 
+                        ? 'OUT OF RANGE: Price below your range. Position holds 100% quote token. NO FEES earned!'
+                        : 'OUT OF RANGE: Price above your range. Position holds 100% base token. NO FEES earned!'
+                      }
+                    >
+                      ⚠️
+                      <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-lg border border-gray-700">
+                        {data.outOfRangeDirection === 'below' 
+                          ? '⚠️ OUT OF RANGE (Below)'
+                          : '⚠️ OUT OF RANGE (Above)'
+                        }
+                        <br/>
+                        <span className="text-red-400">Position earns NO FEES!</span>
+                      </span>
+                    </span>
+                  )}
                 </td>
                 <td className="text-right py-3 px-2 text-white">
                   ${data.targetPrice.toFixed(4)}
