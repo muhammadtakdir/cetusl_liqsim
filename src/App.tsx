@@ -259,6 +259,7 @@ function App() {
                   tokenBSymbol={selectedPool.coinSymbolB}
                   tickLower={tickLower}
                   tickUpper={tickUpper}
+                  currentPrice={selectedPool.currentPrice}
                 />
               </>
             ) : (
@@ -284,54 +285,69 @@ function App() {
             <svg className="w-6 h-6 text-cetus-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            Understanding CLMM & Impermanent Loss
+            Cetus CLMM Mechanics
           </h3>
           
           <div className="grid md:grid-cols-3 gap-6 text-gray-300">
             <div>
-              <h4 className="font-semibold text-white mb-2">🔴 CLMM vs AMM IL</h4>
+              <h4 className="font-semibold text-white mb-2">📊 Active Liquidity</h4>
               <p className="text-sm">
-                <strong>Important:</strong> Traditional AMM formula (2√k/(1+k) - 1) does NOT apply to CLMM.
-                IL in concentrated liquidity is much higher when price moves out of range because 
-                position becomes 100% one token.
+                <strong>Position states sesuai docs:</strong><br/>
+                • P &lt; Pa: 100% Token Y (quote)<br/>
+                • P &gt; Pb: 100% Token X (base)<br/>
+                • Pa ≤ P ≤ Pb: Mix of both tokens<br/>
+                Only in-range positions earn fees!
               </p>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-2">📊 Out of Range = No Fees</h4>
+              <h4 className="font-semibold text-white mb-2">💰 Fee Structure</h4>
               <p className="text-sm">
-                When price moves out of your range, your position earns zero fees.
-                You hold 100% Token A (if price drops) or 100% Token B (if price rises).
-                This is called "one-sided liquidity".
+                <strong>Cetus CLMM Fees:</strong><br/>
+                • 80% → Liquidity Providers<br/>
+                • 20% → Protocol Treasury<br/>
+                • 16 fee tiers: 0.01% - 4%<br/>
+                Fees distributed proportionally to active liquidity.
               </p>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-2">🔄 When to Rebalance?</h4>
+              <h4 className="font-semibold text-white mb-2">⛏️ Fee-Based Mining</h4>
               <p className="text-sm">
-                If your position is out-of-range, consider rebalancing to a new range.
-                But calculate gas cost vs potential fees earned. Use the Rebalancing tab 
-                for simulation.
+                <strong>Mining rewards based on:</strong><br/>
+                • Actual fee contribution, not just TVL<br/>
+                • Only active positions get rewards<br/>
+                • More efficient = higher rewards<br/>
+                Inactive positions don't dilute rewards.
               </p>
             </div>
           </div>
 
-          {/* Formula Comparison */}
+          {/* Formula Section */}
           <div className="mt-6 p-4 bg-gray-800/50 rounded-lg">
-            <h4 className="font-semibold text-white mb-3">📐 Correct CLMM Formulas</h4>
+            <h4 className="font-semibold text-white mb-3">📐 CLMM Formulas (from Cetus Docs)</h4>
             <div className="grid md:grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-gray-400 mb-1">Token A (when price in range):</p>
-                <code className="text-cetus-accent">x = L × (1/√P - 1/√Pb)</code>
+                <p className="text-gray-400 mb-1">Active Liquidity Position:</p>
+                <code className="text-cetus-accent">(x + L/√Pb) · (y + L·√Pa) = L²</code>
               </div>
               <div>
-                <p className="text-gray-400 mb-1">Token B (when price in range):</p>
-                <code className="text-cetus-accent">y = L × (√P - √Pa)</code>
+                <p className="text-gray-400 mb-1">Token amounts in range:</p>
+                <code className="text-cetus-accent">x = L(1/√P - 1/√Pb), y = L(√P - √Pa)</code>
               </div>
             </div>
-            <p className="text-gray-500 text-xs mt-3">
-              Where: L = Liquidity, P = Current Price, Pa = Price Lower, Pb = Price Upper
-            </p>
-            <p className="text-gray-500 text-xs mt-1">
-              IL = (V_pool / V_hold) - 1, where V_pool = position value at new price, V_hold = HODL value
+            <div className="mt-4 text-xs text-gray-500">
+              <p>• IL = (V_pool / V_hold) - 1, where V_pool = position value at new price</p>
+              <p>• Pool liquidity: L_pool = Σ(L_i) for all active positions</p>
+              <p>• Source: <a href="https://cetus-1.gitbook.io/cetus-docs/clmm/mechanics" target="_blank" rel="noopener noreferrer" className="text-cetus-accent hover:underline">Cetus CLMM Docs</a></p>
+            </div>
+          </div>
+
+          {/* Range Orders Info */}
+          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <h4 className="font-semibold text-white mb-2">💡 Pro Tip: Range Orders</h4>
+            <p className="text-sm text-gray-300">
+              CLMM positions can act as <strong>limit orders</strong>: Set a narrow range above/below current price. 
+              When price crosses your range, your tokens swap automatically. 
+              But remember: if price fluctuates back, the swap may reverse!
             </p>
           </div>
         </div>

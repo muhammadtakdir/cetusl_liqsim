@@ -53,15 +53,54 @@
 
 | Feature | Description |
 |---------|-------------|
-| ⚡ **Instant Loading** | Pools appear immediately with pre-cached data |
-| 🔢 **IL Calculator** | Simulate impermanent loss for various price scenarios |
-| 📊 **APY Estimation** | Calculate expected returns from trading fees |
-| ⚠️ **Risk Assessment** | Evaluate out-of-range and volatility risks |
-| 📈 **Interactive Charts** | Visualize IL vs price change with Chart.js |
+| ⚡ **Instant Loading** | Pools appear immediately via Cetus REST API |
+| 🔢 **CLMM IL Calculator** | Accurate formulas from Cetus docs (not AMM V2!) |
+| 📊 **APY Estimation** | LP gets 80% of fees (20% protocol fee) |
+| ⛏️ **Mining Rewards** | Fee-based liquidity mining simulation |
+| ⚠️ **Position Health** | Score 0-100 with detailed breakdown |
+| 📈 **Interactive Charts** | Visualize IL vs price change |
 | 🎯 **Price Range Selection** | Configure tick-based liquidity ranges |
-| 🔗 **Real Pool Data** | Connect to Cetus Mainnet via SDK |
+| 🔗 **Real Pool Data** | Connect to Cetus Mainnet via SDK + API |
 | 👛 **zkLogin Wallet** | Connect with Google account (no seed phrase!) |
 | 📱 **Mobile Responsive** | Works on all screen sizes |
+
+---
+
+## 📚 Based on Official Cetus Documentation
+
+This simulator implements mechanics exactly as documented in:
+- [CLMM Overview](https://cetus-1.gitbook.io/cetus-docs/clmm/clmm-overview)
+- [Concepts & Features](https://cetus-1.gitbook.io/cetus-docs/clmm/concepts-and-features)
+- [Mechanics](https://cetus-1.gitbook.io/cetus-docs/clmm/mechanics)
+- [Fees](https://cetus-1.gitbook.io/cetus-docs/clmm/fees)
+- [Liquidity Mining](https://cetus-1.gitbook.io/cetus-docs/clmm/liquidity-mining)
+
+### Key Mechanics Implemented
+
+```
+Position States (sesuai Cetus docs):
+┌─────────────────────────────────────────────────────────────┐
+│ If P < P_low  → Position holds 100% Token Y (quote)         │
+│ If P > P_high → Position holds 100% Token X (base)          │
+│ If P_low ≤ P ≤ P_high → Position holds both tokens          │
+└─────────────────────────────────────────────────────────────┘
+
+Active Liquidity Formula:
+  (x + L/√P_high) · (y + L·√P_low) = L²
+
+Token Amounts in Range:
+  x = L × (1/√P - 1/√P_high)  // Token X
+  y = L × (√P - √P_low)       // Token Y
+
+Fee Distribution:
+  • 80% → Liquidity Providers
+  • 20% → Protocol Treasury
+
+Fee-Based Mining:
+  • Rewards proportional to actual fee contribution
+  • Only active (in-range) positions earn rewards
+  • Inactive positions don't dilute active LP rewards
+```
 
 ---
 
